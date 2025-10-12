@@ -26,7 +26,7 @@ namespace mleise.ProjectedLightsPlugin
 			internal MyIni ini;
 		}
 
-		private static ref ParseResult Parse(MyFunctionalBlock block, out ParseResult result, bool forUpdating = false)
+		private static ParseResult Parse(MyFunctionalBlock block, out ParseResult result, bool forUpdating = false)
 		{
 			var ini = new MyIni();
 			result = new ParseResult
@@ -35,49 +35,49 @@ namespace mleise.ProjectedLightsPlugin
 				definition = LightDefinition.s_dict.TryGetValue(block.BlockDefinition.Id.SubtypeName, out var definition) ? definition : LightDefinition.s_generic,
 				ini = (forUpdating ? ini.TryParse(block.CustomData) : ini.TryParse(block.CustomData, INI_SECTION)) ? ini : null
 			};
-			return ref result;
+			return result;
 		}
 
 		internal static LightDefinition GetFullDefinition(MyFunctionalBlock block)
 		{
 			Parse(block, out var pr);
-			pr.definition.Disabled = !GetBool(ref pr, "Enabled", DefaultEnabled(ref pr));
-			pr.definition.CastShadows = GetBool(ref pr, "CastShadows", DefaultCastShadows(ref pr));
-			pr.definition.ShadowRange = GetFloat(ref pr, "ShadowRange", DefaultShadowRange(ref pr));
-			pr.definition.Texture = GetString(ref pr, "Texture", pr.definition.CastShadows ? pr.definition.SpotTexture : pr.definition.Texture);
+			pr.definition.Disabled = !GetBool(pr, "Enabled", DefaultEnabled(pr));
+			pr.definition.CastShadows = GetBool(pr, "CastShadows", DefaultCastShadows(pr));
+			pr.definition.ShadowRange = GetFloat(pr, "ShadowRange", DefaultShadowRange(pr));
+			pr.definition.Texture = GetString(pr, "Texture", pr.definition.CastShadows ? pr.definition.SpotTexture : pr.definition.Texture);
 			pr.definition.SpotTexture = pr.definition.Texture;
-			pr.definition.ConeAngle = Math.Min(GetFloat(ref pr, "ConeAngle", DefaultConeAngle(ref pr)), pr.definition.CastShadows ? 136 : 180);
-			pr.definition.Bloom = GetFloat(ref pr, "Bloom", DefaultBloom(ref pr));
-			pr.definition.Intensity = GetFloat(ref pr, "Intensity", pr.definition.Intensity);
-			pr.definition.Rotation = GetFloat(ref pr, "Rotation", pr.definition.Rotation);
-			pr.definition.Forward = GetFloat(ref pr, "Forward", pr.definition.Forward);
-			pr.definition.Left = GetFloat(ref pr, "Left", pr.definition.Left);
-			pr.definition.Up = GetFloat(ref pr, "Up", pr.definition.Up);
-			pr.definition.TextureRotation = GetFloat(ref pr, "TextureRotation", DefaultTextureRotation(ref pr));
-			pr.definition.Mix = GetFloat(ref pr, "Mix", pr.definition.Mix);
+			pr.definition.ConeAngle = Math.Min(GetFloat(pr, "ConeAngle", DefaultConeAngle(pr)), pr.definition.CastShadows ? 136 : 180);
+			pr.definition.Bloom = GetFloat(pr, "Bloom", DefaultBloom(pr));
+			pr.definition.Intensity = GetFloat(pr, "Intensity", pr.definition.Intensity);
+			pr.definition.Rotation = GetFloat(pr, "Rotation", pr.definition.Rotation);
+			pr.definition.Forward = GetFloat(pr, "Forward", pr.definition.Forward);
+			pr.definition.Left = GetFloat(pr, "Left", pr.definition.Left);
+			pr.definition.Up = GetFloat(pr, "Up", pr.definition.Up);
+			pr.definition.TextureRotation = GetFloat(pr, "TextureRotation", DefaultTextureRotation(pr));
+			pr.definition.Mix = GetFloat(pr, "Mix", pr.definition.Mix);
 			return pr.definition;
 		}
 
-		private static bool GetBool(ref ParseResult pr, string name, bool fallback)
+		private static bool GetBool(in ParseResult pr, string name, bool fallback)
 		{
 			return (pr.ini != null && pr.ini.Get(INI_SECTION, name).TryGetBoolean(out var value)) ? value : fallback;
 		}
 
-		private static float GetFloat(ref ParseResult pr, string name, float fallback)
+		private static float GetFloat(in ParseResult pr, string name, float fallback)
 		{
 			return (pr.ini != null && pr.ini.Get(INI_SECTION, name).TryGetSingle(out var value)) ? value : fallback;
 		}
 
-		private static string GetString(ref ParseResult pr, string name, string fallback)
+		private static string GetString(in ParseResult pr, string name, string fallback)
 		{
 			return (pr.ini != null && pr.ini.Get(INI_SECTION, name).TryGetString(out var value)) ? value : fallback;
 		}
 
-		private static bool SetBool(ref ParseResult pr, string name, bool fallback, bool value)
+		private static bool SetBool(in ParseResult pr, string name, bool fallback, bool value)
 		{
 			if (pr.ini == null) return false;
 
-			if (SetHelper(ref pr, name, fallback, value) && !pr.ini.Get(INI_SECTION, name).TryGetBoolean(out fallback) || fallback != value)
+			if (SetHelper(pr, name, fallback, value) && !pr.ini.Get(INI_SECTION, name).TryGetBoolean(out fallback) || fallback != value)
 			{
 				pr.ini.Set(INI_SECTION, name, value);
 				pr.block.CustomData = pr.ini.ToString();
@@ -85,7 +85,7 @@ namespace mleise.ProjectedLightsPlugin
 			return true;
 		}
 
-		private static bool SetFloat(ref ParseResult pr, string name, float fallback, float value)
+		private static bool SetFloat(in ParseResult pr, string name, float fallback, float value)
 		{
 			if (pr.ini == null) return false;
 
@@ -93,7 +93,7 @@ namespace mleise.ProjectedLightsPlugin
 			{
 				value = fallback;
 			}
-			if (SetHelper(ref pr, name, fallback, value) && !pr.ini.Get(INI_SECTION, name).TryGetSingle(out fallback) || Math.Abs(fallback - value) >= 0.0009f)
+			if (SetHelper(pr, name, fallback, value) && !pr.ini.Get(INI_SECTION, name).TryGetSingle(out fallback) || Math.Abs(fallback - value) >= 0.0009f)
 			{
 				pr.ini.Set(INI_SECTION, name, value.ToString("F3", CultureInfo.InvariantCulture));
 				pr.block.CustomData = pr.ini.ToString();
@@ -101,11 +101,11 @@ namespace mleise.ProjectedLightsPlugin
 			return true;
 		}
 
-		private static bool SetString(ref ParseResult pr, string name, string fallback, string value)
+		private static bool SetString(in ParseResult pr, string name, string fallback, string value)
 		{
 			if (pr.ini == null) return false;
 
-			if (SetHelper(ref pr, name, fallback, value) && !pr.ini.Get(INI_SECTION, name).TryGetString(out fallback) || fallback != value)
+			if (SetHelper(pr, name, fallback, value) && !pr.ini.Get(INI_SECTION, name).TryGetString(out fallback) || fallback != value)
 			{
 				pr.ini.Set(INI_SECTION, name, value);
 				pr.block.CustomData = pr.ini.ToString();
@@ -113,7 +113,7 @@ namespace mleise.ProjectedLightsPlugin
 			return true;
 		}
 
-		private static bool SetHelper<T>(ref ParseResult pr, string name, T fallback, T value)
+		private static bool SetHelper<T>(in ParseResult pr, string name, T fallback, T value)
 		{
 			if (fallback.Equals(value))
 			{
@@ -138,66 +138,66 @@ namespace mleise.ProjectedLightsPlugin
 			}
 		}
 
-		private static bool DefaultEnabled(ref ParseResult pr) => typeof(MyInteriorLight).IsAssignableFrom(pr.block.GetType()) && !pr.definition.Disabled;
-		internal static bool GetEnabled(MyFunctionalBlock block) => GetBool(ref Parse(block, out var pr), "Enabled", DefaultEnabled(ref pr));
-		internal static bool SetEnabled(MyFunctionalBlock block, bool value) => SetBool(ref Parse(block, out var pr, true), "Enabled", DefaultEnabled(ref pr), value);
+		private static bool DefaultEnabled(in ParseResult pr) => typeof(MyInteriorLight).IsAssignableFrom(pr.block.GetType()) && !pr.definition.Disabled;
+		internal static bool GetEnabled(MyFunctionalBlock block) => GetBool(Parse(block, out var pr), "Enabled", DefaultEnabled(pr));
+		internal static bool SetEnabled(MyFunctionalBlock block, bool value) => SetBool(Parse(block, out var pr, true), "Enabled", DefaultEnabled(pr), value);
 
-		private static bool DefaultCastShadows(ref ParseResult pr) => pr.definition.CastShadows;
-		internal static bool GetCastShadows(MyFunctionalBlock block) => GetBool(ref Parse(block, out var pr), "CastShadows", DefaultCastShadows(ref pr));
-		internal static void SetCastShadows(MyFunctionalBlock block, bool value) => SetBool(ref Parse(block, out var pr, true), "CastShadows", DefaultCastShadows(ref pr), value);
+		private static bool DefaultCastShadows(in ParseResult pr) => pr.definition.CastShadows;
+		internal static bool GetCastShadows(MyFunctionalBlock block) => GetBool(Parse(block, out var pr), "CastShadows", DefaultCastShadows(pr));
+		internal static void SetCastShadows(MyFunctionalBlock block, bool value) => SetBool(Parse(block, out var pr, true), "CastShadows", DefaultCastShadows(pr), value);
 
-		private static float DefaultShadowRange(ref ParseResult pr) => pr.definition.ShadowRange;
-		internal static float GetDefaultShadowRange(MyFunctionalBlock block) => DefaultShadowRange(ref Parse(block, out _));
-		internal static float GetShadowRange(MyFunctionalBlock block) => GetFloat(ref Parse(block, out var pr), "ShadowRange", DefaultShadowRange(ref pr));
-		internal static void SetShadowRange(MyFunctionalBlock block, float value) => SetFloat(ref Parse(block, out var pr, true), "ShadowRange", DefaultShadowRange(ref pr), value);
+		private static float DefaultShadowRange(in ParseResult pr) => pr.definition.ShadowRange;
+		internal static float GetDefaultShadowRange(MyFunctionalBlock block) => DefaultShadowRange(Parse(block, out _));
+		internal static float GetShadowRange(MyFunctionalBlock block) => GetFloat(Parse(block, out var pr), "ShadowRange", DefaultShadowRange(pr));
+		internal static void SetShadowRange(MyFunctionalBlock block, float value) => SetFloat(Parse(block, out var pr, true), "ShadowRange", DefaultShadowRange(pr), value);
 
-		private static float DefaultConeAngle(ref ParseResult pr) => pr.definition.ConeAngle;
-		internal static float GetDefaultConeAngle(MyFunctionalBlock block) => DefaultConeAngle(ref Parse(block, out _));
-		internal static float GetConeAngle(MyFunctionalBlock block) => GetFloat(ref Parse(block, out var pr), "ConeAngle", DefaultConeAngle(ref pr));
-		internal static void SetConeAngle(MyFunctionalBlock block, float value) => SetFloat(ref Parse(block, out var pr, true), "ConeAngle", DefaultConeAngle(ref pr), value);
+		private static float DefaultConeAngle(in ParseResult pr) => pr.definition.ConeAngle;
+		internal static float GetDefaultConeAngle(MyFunctionalBlock block) => DefaultConeAngle(Parse(block, out _));
+		internal static float GetConeAngle(MyFunctionalBlock block) => GetFloat(Parse(block, out var pr), "ConeAngle", DefaultConeAngle(pr));
+		internal static void SetConeAngle(MyFunctionalBlock block, float value) => SetFloat(Parse(block, out var pr, true), "ConeAngle", DefaultConeAngle(pr), value);
 
-		private static float DefaultForward(ref ParseResult pr) => pr.definition.Forward;
-		internal static float GetDefaultForward(MyFunctionalBlock block) => DefaultForward(ref Parse(block, out _));
-		internal static float GetForward(MyFunctionalBlock block) => GetFloat(ref Parse(block, out var pr), "Forward", DefaultForward(ref pr));
-		internal static void SetForward(MyFunctionalBlock block, float value) => SetFloat(ref Parse(block, out var pr, true), "Forward", DefaultForward(ref pr), value);
+		private static float DefaultForward(in ParseResult pr) => pr.definition.Forward;
+		internal static float GetDefaultForward(MyFunctionalBlock block) => DefaultForward(Parse(block, out _));
+		internal static float GetForward(MyFunctionalBlock block) => GetFloat(Parse(block, out var pr), "Forward", DefaultForward(pr));
+		internal static void SetForward(MyFunctionalBlock block, float value) => SetFloat(Parse(block, out var pr, true), "Forward", DefaultForward(pr), value);
 
-		private static float DefaultLeft(ref ParseResult pr) => pr.definition.Left;
-		internal static float GetDefaultLeft(MyFunctionalBlock block) => DefaultLeft(ref Parse(block, out _));
-		internal static float GetLeft(MyFunctionalBlock block) => GetFloat(ref Parse(block, out var pr), "Left", DefaultLeft(ref pr));
-		internal static void SetLeft(MyFunctionalBlock block, float value) => SetFloat(ref Parse(block, out var pr, true), "Left", DefaultLeft(ref pr), value);
+		private static float DefaultLeft(in ParseResult pr) => pr.definition.Left;
+		internal static float GetDefaultLeft(MyFunctionalBlock block) => DefaultLeft(Parse(block, out _));
+		internal static float GetLeft(MyFunctionalBlock block) => GetFloat(Parse(block, out var pr), "Left", DefaultLeft(pr));
+		internal static void SetLeft(MyFunctionalBlock block, float value) => SetFloat(Parse(block, out var pr, true), "Left", DefaultLeft(pr), value);
 
-		private static float DefaultUp(ref ParseResult pr) => pr.definition.Up;
-		internal static float GetDefaultUp(MyFunctionalBlock block) => DefaultUp(ref Parse(block, out _));
-		internal static float GetUp(MyFunctionalBlock block) => GetFloat(ref Parse(block, out var pr), "Up", DefaultUp(ref pr));
-		internal static void SetUp(MyFunctionalBlock block, float value) => SetFloat(ref Parse(block, out var pr, true), "Up", DefaultUp(ref pr), value);
+		private static float DefaultUp(in ParseResult pr) => pr.definition.Up;
+		internal static float GetDefaultUp(MyFunctionalBlock block) => DefaultUp(Parse(block, out _));
+		internal static float GetUp(MyFunctionalBlock block) => GetFloat(Parse(block, out var pr), "Up", DefaultUp(pr));
+		internal static void SetUp(MyFunctionalBlock block, float value) => SetFloat(Parse(block, out var pr, true), "Up", DefaultUp(pr), value);
 
-		private static float DefaultPitch(ref ParseResult pr) => pr.definition.Rotation;
-		internal static float GetDefaultPitch(MyFunctionalBlock block) => DefaultPitch(ref Parse(block, out _));
-		internal static float GetPitch(MyFunctionalBlock block) => GetFloat(ref Parse(block, out var pr), "Rotation", DefaultPitch(ref pr));
-		internal static void SetPitch(MyFunctionalBlock block, float value) => SetFloat(ref Parse(block, out var pr, true), "Rotation", DefaultPitch(ref pr), value);
+		private static float DefaultPitch(in ParseResult pr) => pr.definition.Rotation;
+		internal static float GetDefaultPitch(MyFunctionalBlock block) => DefaultPitch(Parse(block, out _));
+		internal static float GetPitch(MyFunctionalBlock block) => GetFloat(Parse(block, out var pr), "Rotation", DefaultPitch(pr));
+		internal static void SetPitch(MyFunctionalBlock block, float value) => SetFloat(Parse(block, out var pr, true), "Rotation", DefaultPitch(pr), value);
 
-		private static float DefaultBloom(ref ParseResult pr) => pr.definition.Bloom;
-		internal static float GetDefaultBloom(MyFunctionalBlock block) => DefaultBloom(ref Parse(block, out _));
-		internal static float GetBloom(MyFunctionalBlock block) => GetFloat(ref Parse(block, out var pr), "Bloom", DefaultBloom(ref pr));
-		internal static void SetBloom(MyFunctionalBlock block, float value) => SetFloat(ref Parse(block, out var pr, true), "Bloom", DefaultBloom(ref pr), value);
+		private static float DefaultBloom(in ParseResult pr) => pr.definition.Bloom;
+		internal static float GetDefaultBloom(MyFunctionalBlock block) => DefaultBloom(Parse(block, out _));
+		internal static float GetBloom(MyFunctionalBlock block) => GetFloat(Parse(block, out var pr), "Bloom", DefaultBloom(pr));
+		internal static void SetBloom(MyFunctionalBlock block, float value) => SetFloat(Parse(block, out var pr, true), "Bloom", DefaultBloom(pr), value);
 
-		private static float DefaultIntensity(ref ParseResult pr) => pr.definition.Intensity;
-		internal static float GetDefaultIntensity(MyFunctionalBlock block) => DefaultIntensity(ref Parse(block, out _));
-		internal static float GetIntensity(MyFunctionalBlock block) => GetFloat(ref Parse(block, out var pr), "Intensity", DefaultIntensity(ref pr));
-		internal static void SetIntensity(MyFunctionalBlock block, float value) => SetFloat(ref Parse(block, out var pr, true), "Intensity", DefaultIntensity(ref pr), value);
+		private static float DefaultIntensity(in ParseResult pr) => pr.definition.Intensity;
+		internal static float GetDefaultIntensity(MyFunctionalBlock block) => DefaultIntensity(Parse(block, out _));
+		internal static float GetIntensity(MyFunctionalBlock block) => GetFloat(Parse(block, out var pr), "Intensity", DefaultIntensity(pr));
+		internal static void SetIntensity(MyFunctionalBlock block, float value) => SetFloat(Parse(block, out var pr, true), "Intensity", DefaultIntensity(pr), value);
 
-		private static float DefaultMix(ref ParseResult pr) => pr.definition.Mix;
-		internal static float GetDefaultMix(MyFunctionalBlock block) => DefaultMix(ref Parse(block, out _)) * 100;
-		internal static float GetMix(MyFunctionalBlock block) => GetFloat(ref Parse(block, out var pr), "Mix", DefaultMix(ref pr)) * 100;
-		internal static void SetMix(MyFunctionalBlock block, float value) => SetFloat(ref Parse(block, out var pr, true), "Mix", DefaultMix(ref pr), value / 100);
+		private static float DefaultMix(in ParseResult pr) => pr.definition.Mix;
+		internal static float GetDefaultMix(MyFunctionalBlock block) => DefaultMix(Parse(block, out _)) * 100;
+		internal static float GetMix(MyFunctionalBlock block) => GetFloat(Parse(block, out var pr), "Mix", DefaultMix(pr)) * 100;
+		internal static void SetMix(MyFunctionalBlock block, float value) => SetFloat(Parse(block, out var pr, true), "Mix", DefaultMix(pr), value / 100);
 
-		internal static string GetTexture(MyFunctionalBlock block) => GetString(ref Parse(block, out _), "Texture", "");
-		internal static void SetTexture(MyFunctionalBlock block, string value) => SetString(ref Parse(block, out _, true), "Texture", "", value);
+		internal static string GetTexture(MyFunctionalBlock block) => GetString(Parse(block, out _), "Texture", "");
+		internal static void SetTexture(MyFunctionalBlock block, string value) => SetString(Parse(block, out _, true), "Texture", "", value);
 
-		private static float DefaultTextureRotation(ref ParseResult pr) => pr.definition.TextureRotation;
-		internal static float GetDefaultTextureRotation(MyFunctionalBlock block) => DefaultTextureRotation(ref Parse(block, out _));
-		internal static float GetTextureRotation(MyFunctionalBlock block) => GetFloat(ref Parse(block, out var pr), "TextureRotation", DefaultTextureRotation(ref pr));
-		internal static void SetTextureRotation(MyFunctionalBlock block, float value) => SetFloat(ref Parse(block, out var pr, true), "TextureRotation", DefaultTextureRotation(ref pr), value);
+		private static float DefaultTextureRotation(in ParseResult pr) => pr.definition.TextureRotation;
+		internal static float GetDefaultTextureRotation(MyFunctionalBlock block) => DefaultTextureRotation(Parse(block, out _));
+		internal static float GetTextureRotation(MyFunctionalBlock block) => GetFloat(Parse(block, out var pr), "TextureRotation", DefaultTextureRotation(pr));
+		internal static void SetTextureRotation(MyFunctionalBlock block, float value) => SetFloat(Parse(block, out var pr, true), "TextureRotation", DefaultTextureRotation(pr), value);
 	}
 
 	// Here we update make sure that any configuration done in the custom data of a lighting block is applied after a
