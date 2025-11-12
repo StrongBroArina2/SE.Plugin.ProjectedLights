@@ -26,11 +26,15 @@ namespace mleise.ProjectedLightsPlugin
 
 		internal static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instructions)
 		{
-			var codes = (List<CodeInstruction>)instructions;
-			if (codes[264].opcode != OpCodes.Ldc_R4 || (float)codes[264].operand != 2)
-				throw new Exception();
-			codes[264].operand = 16f;
-			return codes;
+			var field = AccessTools.Field(typeof(Vector3), nameof(Vector3.Z));
+			var matcher = new CodeMatcher(instructions);
+			matcher.End().SearchBackwards(i => i.LoadsField(field)).SearchForward(i => i.opcode == OpCodes.Ldc_R4);
+
+			matcher.SetOperandAndAdvance((float)matcher.Operand * 8f);
+
+			return matcher.Opcode != OpCodes.Div
+				? throw new InvalidOperationException("GatherLightAmbient was changed, the plugin needs to be updated.")
+				: matcher.InstructionEnumeration();
 		}
 	}
 
@@ -147,16 +151,44 @@ namespace mleise.ProjectedLightsPlugin
 		}
 	}
 
-	// Now since everything blooms out more than desired, we have to write smaller values into the emissive render target.
+	//Replace references to DefaultEmissivity
 	[HarmonyPatch]
+	static class Patch_MyModelProperties_DefaultEmissivity
+	{
+		internal static IEnumerable<MethodBase> TargetMethods() => new MethodBase[]
+		{
+			AccessTools.Constructor(AccessTools.TypeByName("VRage.Render11.Scene.Components.MyModelProperties")),
+			AccessTools.Method("VRage.Render11.Scene.Components.MyRenderableComponent:CreateRenderableProxyForPart"),
+			AccessTools.Method("VRage.Render11.Scene.Components.MyRenderableComponent:RebuildRenderProxies"),
+			AccessTools.Method("VRageRender.MyVoxelCellComponent:CreateRenderableProxyForPart"),
+        };
+        internal static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instructions)
+        {
+			var field = AccessTools.Field("VRage.Render11.Scene.Components.MyModelProperties:DefaultEmissivity");
+
+            foreach (var instruction in instructions)
+			{
+				if (instruction.LoadsField(field))
+				{
+					instruction.opcode = OpCodes.Ldc_R4;
+                    instruction.operand = LightDefinition.EMISSIVE_BOOST;
+                }
+
+                yield return instruction;
+            }
+
+        }
+    }
+
+
+    // Now since everything blooms out more than desired, we have to write smaller values into the emissive render target.
+    [HarmonyPatch]
 	static class Patch_MyRender11_ProcessMessageInternal
 	{
 		internal static void Prepare(MethodBase original)
 		{
 			if (original == null)
 			{
-				AccessTools.Field("VRage.Render11.Scene.Components.MyModelProperties:DefaultEmissivity").SetValue(null, LightDefinition.EMISSIVE_BOOST_INV);
-
 				var myInstanceMaterialType = AccessTools.TypeByName("VRage.Render11.GeometryStage2.Instancing.MyInstanceMaterial");
 				var defaultField = AccessTools.Field(myInstanceMaterialType, "Default");
 				var material = defaultField.GetValue(null);
