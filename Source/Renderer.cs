@@ -171,7 +171,7 @@ namespace mleise.ProjectedLightsPlugin
 				if (instruction.LoadsField(field))
 				{
 					instruction.opcode = OpCodes.Ldc_R4;
-                    instruction.operand = LightDefinition.EMISSIVE_BOOST;
+                    instruction.operand = LightDefinition.EMISSIVE_BOOST_INV;
                 }
 
                 yield return instruction;
