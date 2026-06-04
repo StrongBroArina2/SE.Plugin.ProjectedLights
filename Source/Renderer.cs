@@ -236,49 +236,64 @@ namespace mleise.ProjectedLightsPlugin
 	// where they cause vending machines or lights to be mirrored on the opposite wall. Unfortunately the color
 	// components therein are clamped via pixel shader to an intensity of 1000, resulting in a 2nd source of "my orange
 	// just turned yellow" when rendering very bright emissive materials.
-	// This patch intercepts and modifies the preprocessed shader text that is used to build a hash to look up the
-	// compiled shader in the cache. Space Engineers will not find he modified shader in the cache yet and compile it.
-	[HarmonyPatch(typeof(MyShaderCompiler), "PreprocessShader")]
-	static class Patch_MyShaderCompiler_PreprocessShader
+	//
+	// PreprocessShader.Postfix and ShaderBytecode.Compile.Prefix below cooperate to lift that clamp to 3000, but they
+	// DO NOT share mutable state:
+	//   - Postfix rewrites the preprocessed shader text that Space Engineers uses to build the shader-cache hash.
+	//     Changing that text alone is enough to make the cache miss on first run so the real Compile path is taken.
+	//   - Prefix independently identifies the same target shader from (sourceFileName, defines), re-runs the D3D
+	//     preprocessor, applies the same replacement, and hands the substituted source to D3DCompile.
+	// Self-contained patches mean cache hits, JIT inlining of either method, and unrelated plugins compiling their
+	// own shaders through this overload are all non-issues.
+	static class EnvReflectionPixelPatch
 	{
-		[ThreadStatic] internal static string s_preprocessedShader;
+		internal const string OldClamp = @"    return float4 ( clamp ( shaded , 0 , 1000 ) , 1 ) ; ";
+		internal const string NewClamp = @"    return float4 ( clamp ( shaded , 0 , 3000 ) , 1 ) ; ";
 
-		internal static void Postfix(string filepath, ShaderMacro[] macros, ref string __result)
+		// True iff (filepath, macros) point at the forward-renderer pixel shader for the env reflection map.
+		// Both patches identify the target this way; the helper is the only thing they share, and it's a pure
+		// function over its arguments.
+		internal static bool IsTarget(string filepath, ShaderMacro[] macros)
 		{
-			if (filepath.EndsWith(@"\Pixel.hlsl"))
+			if (filepath == null || macros == null || !filepath.EndsWith(@"\Pixel.hlsl"))
+				return false;
+			foreach (var define in macros)
 			{
-				foreach (var define in macros)
-				{
-					if (define.Name == "RENDERING_PASS")
-					{
-						if (define.Definition == "2")
-						{
-							// This is the forward renderer for the environment reflection map that we want to override.
-							const string oldValue = @"    return float4 ( clamp ( shaded , 0 , 1000 ) , 1 ) ; ";
-							const string newValue = @"    return float4 ( clamp ( shaded , 0 , 3000 ) , 1 ) ; ";
-							s_preprocessedShader = __result = __result.Replace(oldValue, newValue);
-							return;
-						}
-						break;
-					}
-				}
+				if (define.Name == "RENDERING_PASS")
+					// Pass 2 is the forward renderer for the environment reflection map - the one we want to override.
+					return define.Definition == "2";
 			}
-			s_preprocessedShader = null;
+			return false;
 		}
 	}
 
-	// Here we compile the modified shader that we saved in a static variable.
+	// This patch intercepts and modifies the preprocessed shader text that is used to build a hash to look up the
+	// compiled shader in the cache. Space Engineers will not find the modified shader in the cache yet and compile it.
+	[HarmonyPatch(typeof(MyShaderCompiler), "PreprocessShader")]
+	static class Patch_MyShaderCompiler_PreprocessShader
+	{
+		internal static void Postfix(string filepath, ShaderMacro[] macros, ref string __result)
+		{
+			// PreprocessShader returns null when SE's internal preprocess fails; don't NRE on its quiet error path.
+			if (__result == null || !EnvReflectionPixelPatch.IsTarget(filepath, macros)) return;
+			__result = __result.Replace(EnvReflectionPixelPatch.OldClamp, EnvReflectionPixelPatch.NewClamp);
+		}
+	}
+
+	// Here we substitute the modified shader source on the fly. We identify the target ourselves from the Compile
+	// arguments and re-run preprocessing, so this patch is independent of the PreprocessShader patch above.
 	[HarmonyPatch(typeof(ShaderBytecode), nameof(ShaderBytecode.Compile), new Type[] { typeof(string), typeof(string), typeof(string), typeof(ShaderFlags), typeof(EffectFlags), typeof(ShaderMacro[]), typeof(Include), typeof(string), typeof(SecondaryDataFlags), typeof(DataStream) })]
 	static class Patch_ShaderBytecode_Compile
 	{
-		internal static void Prefix(ref string shaderSource, ref ShaderFlags shaderFlags)
+		internal static void Prefix(ref string shaderSource, ref ShaderFlags shaderFlags,
+		                            string sourceFileName, ShaderMacro[] defines, Include include)
 		{
-			if (Patch_MyShaderCompiler_PreprocessShader.s_preprocessedShader != null)
-			{
-				shaderSource = Patch_MyShaderCompiler_PreprocessShader.s_preprocessedShader;
-				Patch_MyShaderCompiler_PreprocessShader.s_preprocessedShader = null;
-				shaderFlags = ShaderFlags.OptimizationLevel3;
-			}
+			// Other plugins' Compile calls reach this Prefix too but fail IsTarget (different filepath, or no
+			// RENDERING_PASS=2) and pass through untouched.
+			if (!EnvReflectionPixelPatch.IsTarget(sourceFileName, defines)) return;
+			shaderSource = ShaderBytecode.Preprocess(shaderSource, defines, include, sourceFileName)
+			                             .Replace(EnvReflectionPixelPatch.OldClamp, EnvReflectionPixelPatch.NewClamp);
+			shaderFlags = ShaderFlags.OptimizationLevel3;
 		}
 	}
 }
